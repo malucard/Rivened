@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+	<PublishSingleFile>true</PublishSingleFile>
+	<SelfContained>true</SelfContained>
+	<TrimMode>partial</TrimMode>
+	<PublishTrimmed>true</PublishTrimmed>
+	<DebuggerSupport>false</DebuggerSupport>
+	<EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
+	<EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
+	<InvariantGlobalization>true</InvariantGlobalization>
+	<MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+	<UseSystemResourceKeys>true</UseSystemResourceKeys>
+	<DebugType>embedded</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Remove="**\*.glade" />
+    <EmbeddedResource Include="**\*.glade">
+      <LogicalName>%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <!--PackageReference Include="GtkSharp.Dependencies" Version="1.1.1" /-->
+    <!--PackageReference Include="Scintilla.NET.Gtk" Version="1.0.11.5320" /-->
+    <PackageReference Include="GtkSharp" Version="3.24.24.38" />
+    <PackageReference Include="GtkSharp.Dependencies" Version="1.1.1" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="6.0.0" />
+  </ItemGroup>
+</Project>
