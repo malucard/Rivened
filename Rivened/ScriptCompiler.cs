@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -7,6 +6,62 @@ using System.Text;
 
 namespace Rivened {
 	public class ScriptCompiler {
+		public static (bool, string) ApplyPatches(string filename, string src, string[] patches) {
+			if(patches.Length == 0) return (true, src);
+			var insertIdx = src.LastIndexOf("\ntrailer.");
+			var lines = new List<string>(src.Split('\n'));
+			for(int i = 0; i < patches.Length; i++) {
+				var patch = patches[i];
+				Trace.Assert(patch[0] == ':');
+				var mode = patch[1];
+				Trace.Assert(mode == '<' || mode == '>' || mode == '='); // insert before, insert after, replace
+				var lineNumEnd = patch.IndexOf(':', 1);
+				var lineNum = int.Parse(patch.AsSpan(2, lineNumEnd - 2)) - 1;
+				var endOfSetup = patch.IndexOf('\n');
+				if(endOfSetup == -1) endOfSetup = patch.Length;
+				var lineInScript = lines[lineNum];
+				while(lineInScript.StartsWith('&')) {
+					lineInScript = lineInScript[(lineInScript.IndexOf(": ") + 2)..];
+				}
+				var patchCheck = patch[(lineNumEnd + 1)..endOfSetup];
+				if(lineInScript == patchCheck || (patch[endOfSetup - 1] == '*' && lineInScript.StartsWith(patchCheck[..(patchCheck.Length - 1)]))) {
+					var szStr = patch[(patch.IndexOf('.') + 1)..patch.IndexOf(' ')];
+					var sz = int.Parse(szStr);
+					if(sz < 10) {
+						return (false, i + 1 + ": can only patch instructions of 10 or higher length for now");
+					}
+					if(endOfSetup == patch.Length) {
+						lines[lineNum] = "0." + szStr + " 00-00-00-00-00-00-00-00";
+						for(int j = 10; j < sz; j++) {
+							lines[lineNum] += "-00";
+						}
+						if(mode != '=') {
+							return (false, i + 1 + " in " + filename + ": empty patch must be in replacement mode (=)");
+						}
+					} else {
+						lines[lineNum] = "Loop_Cond." + szStr + " &P" + (i + 1) + "-00-00-00-00-00-00";
+						for(int j = 10; j < sz; j++) {
+							lines[lineNum] += "-00";
+						}
+						lines[lineNum + 1] = "&PR" + (i + 1) + ": " + lines[lineNum + 1];
+						if(mode == '<') {
+							lines[^2] += "\n&P" + (i + 1) + ": " + patch[(endOfSetup + 1)..] + '\n' + lineInScript + "\nLoop_Cond.10 &PR" + (i + 1) + "-00-00-00-00-00-00";
+						} else if(mode == '>') {
+							lines[^2] += "\n&P" + (i + 1) + ": " + lineInScript + '\n' + patch[(endOfSetup + 1)..] + "\nLoop_Cond.10 &PR" + (i + 1) + "-00-00-00-00-00-00";
+						} else if(mode == '=') {
+							lines[^2] += "\n&P" + (i + 1) + ": " + patch[(endOfSetup + 1)..] + "\nLoop_Cond.10 &PR" + (i + 1) + "-00-00-00-00-00-00";
+						}
+					}
+				} else if(lineInScript.StartsWith("Loop_Cond")) {
+					Program.Log("Skipping patch " + i + " in " + filename + " as it appears to be applied; if it was updated, revert all and fetch again");
+					continue;
+				} else {
+					return (false, i + 1 + " in " + filename + ": line does not match patch");
+				}
+			}
+			return (true, string.Join('\n', lines));
+		}
+
 		public static bool Compile(string filename, string source, out byte[] arr, out string err) {
 			var isDataBin = filename == "DATA.BIN";
 			arr = null;
@@ -14,24 +69,36 @@ namespace Rivened {
 			using var wr = new BinaryWriter(stream);
 			var strings = new List<(int, string)>();
 			var lines = source.Split('\n');
+			var labels = new Dictionary<string, ushort>();
+			var pendingLabelRefs = new List<(int, string)>();
 			byte[] trailer = null;
 			for(var lineIdx = 0; lineIdx < lines.Length; lineIdx++) {
 				var line = lines[lineIdx];
-				int i = 0;
-				int dotIdx = 0;
+				var i = 0;
+				var dotIdx = 0;
 				for(; i < line.Length; i++) {
 					if(!char.IsWhiteSpace(line[i])) {
-						if(line[i] == '#') goto skip_line;
-						dotIdx = line.IndexOf('.', i);
-						if(dotIdx == -1) goto skip_line;
-						break;
+						if(line[i] == '&') {
+							var endOfName = line.IndexOf(':', i + 1);
+							wr.Flush();
+							labels[line[(i + 1)..endOfName]] = (ushort) stream.Position;
+							i = endOfName;
+						} else if(line[i] == '#') {
+							goto skip_line;
+						} else {
+							dotIdx = line.IndexOf('.', i);
+							if(dotIdx == -1) {
+								goto skip_line;
+							}
+							break; // found the opcode, hopefully
+						}
 					}
 				}
-				var startPos = wr.BaseStream.Position;
-				string opcode = line[i..dotIdx];
+				var startPos = stream.Position;
+				var opcode = line[i..dotIdx];
 				if(opcode == "header" || opcode == "trailer" || isDataBin) {
 					// not an actual opcode
-				} else if(Enum.TryParse(typeof(TokenType), opcode, out var openum)) {
+				} else if(Enum.TryParse(typeof(Opcode), opcode, out var openum)) {
 					wr.Write((byte) (int) openum);
 				} else {
 					err = lineIdx + 1 + ":" + (i + 1) + ": could not parse '" + opcode + "' into opcode";
@@ -50,7 +117,7 @@ namespace Rivened {
 				var curWr = wr;
 				if(uint.TryParse(line[(dotIdx + 1)..(dotIdx + lenLen + 1)], out uint oplen)) {
 					if(opcode == "header") {
-						Debug.Assert(wr.BaseStream.Position == 0);
+						Trace.Assert(stream.Position == 0);
 						wr.Write((byte) oplen);
 					} else if(opcode == "trailer") {
 						curWr = new BinaryWriter(new MemoryStream((int) oplen));
@@ -62,12 +129,12 @@ namespace Rivened {
 					return false;
 				}
 				var stringPos = new List<int>();
-				int stringPosIdx = 0;
+				var stringPosIdx = 0;
 				for(i = dotIdx + lenLen + 1; i < line.Length; i++) {
 					if(line[i] == '-' || char.IsWhiteSpace(line[i])) {
 						// ignore
 					} else if(line[i] == 'S') {
-						stringPos.Add((int) curWr.BaseStream.Position);
+						stringPos.Add((int) stream.Position);
 						curWr.Write((ushort) 0);
 					} else if(line[i] == '§') {
 						int end = line.IndexOf('§', i + 1);
@@ -84,10 +151,28 @@ namespace Rivened {
 							strings.Add((stringPos[stringPosIdx++], line[(i + 1)..].Trim()));
 						}
 						break;
-					} else if(line[i] == '#') {
-						break;
-					} else if(i + 1 < line.Length && (char.IsDigit(line[i]) || (line[i] >= 'A' && line[i] <= 'F') || (line[i] >= 'a' && line[i] <= 'f'))
-							&& (char.IsDigit(line[i + 1]) || (line[i + 1] >= 'A' && line[i + 1] <= 'F') || (line[i + 1] >= 'a' && line[i + 1] <= 'f'))) {
+					//} else if(line[i] == '#') {
+					//	break;
+					} else if(line[i] == '&') {
+						var end = i + 1;
+						while((line[end] >= '0' && line[end] <= '9') || (line[end] >= 'A' && line[end] <= 'Z') || (line[end] >= 'a' && line[end] <= 'z') || line[end] == '_') {
+							end++;
+						}
+						var label = line[(i + 1)..end];
+						if(label.Length == 0) {
+							err = lineIdx + 1 + ":" + (i + 1) + ": could not parse label reference";
+							return false;
+						}
+						if(labels.TryGetValue(label, out var location)) {
+							curWr.Write((ushort) location);
+						} else {
+							curWr.Flush(); // this is fine because trailer (which replaces the stream) wouldn't have a &
+							pendingLabelRefs.Add(((int) stream.Position, label));
+							curWr.Write((ushort) 0);
+						}
+						i = end - 1;
+					} else if(i + 1 < line.Length && ((line[i] >= '0' && line[i] <= '9') || (line[i] >= 'A' && line[i] <= 'F') || (line[i] >= 'a' && line[i] <= 'f'))
+							&& ((line[i + 1] >= '0' && line[i + 1] <= '9') || (line[i + 1] >= 'A' && line[i + 1] <= 'F') || (line[i + 1] >= 'a' && line[i + 1] <= 'f'))) {
 						try {
 							curWr.Write(Convert.ToByte(line[i..(i + 2)], 16));
 							i++;
@@ -110,11 +195,19 @@ namespace Rivened {
 						return false;
 					}
 					trailerStream.Dispose();
-				} else if(wr.BaseStream.Position != startPos + oplen) {
-					err = lineIdx + 1 + ":1: instruction has length " + (wr.BaseStream.Position - startPos) + " instead of the expected " + oplen;
+				} else if(stream.Position != startPos + oplen) {
+					err = lineIdx + 1 + ":1: instruction has length " + (stream.Position - startPos) + " instead of the expected " + oplen;
 					return false;
 				}
 				skip_line:;
+			}
+			for(int i = 0; i < pendingLabelRefs.Count; i++) {
+				wr.Flush();
+				var posBackup = stream.Position;
+				stream.Position = pendingLabelRefs[i].Item1;
+				wr.Write((ushort) labels[pendingLabelRefs[i].Item2]);
+				wr.Flush();
+				stream.Position = posBackup;
 			}
 			//if(isDataBin) { // this doesn't seem necessary
 			//	if(wr.BaseStream.Position > 0x2640) {
@@ -129,8 +222,13 @@ namespace Rivened {
 				encoding.DecoderFallback = DecoderFallback.ExceptionFallback;
 				encoding.EncoderFallback = EncoderFallback.ExceptionFallback;
 			}
+			// the start of strings is technically aligned up to 0x10 originally, but that doesn't seem necessary or beneficial
 			foreach(var pair in strings) {
 				var stringPos = (int) wr.BaseStream.Position;
+				if(stringPos > 0xFFFF) {
+					err = "string passes 64kb mark: " + pair.Item2;
+					return false;
+				}
 				wr.Flush();
 				wr.BaseStream.Position = pair.Item1;
 				wr.Write((ushort) stringPos);
@@ -140,28 +238,30 @@ namespace Rivened {
 				if(MainWindow.Instance.EnTweaks) {
 					str = EnTweaks.ApplyEnTweaks(str);
 				}
-				if(str[0] == '【') {
-					int bracketEnd = str.IndexOf('】') + 1;
-					if(bracketEnd != 0) {
-						if(useBig5) {
-							if(JpToChNames.TryGetValue(str[..bracketEnd], out var chName)) {
-								str = chName + str[bracketEnd..];
-							}
-						} else {
-							if(ChToJpNames.TryGetValue(str[..bracketEnd], out var jpName)) {
-								str = jpName + str[bracketEnd..];
+				if(str.Length > 0) {
+					if(str[0] == '【') {
+						int bracketEnd = str.IndexOf('】') + 1;
+						if(bracketEnd != 0) {
+							if(useBig5) {
+								if(JpToChNames.TryGetValue(str[..bracketEnd], out var chName)) {
+									str = chName + str[bracketEnd..];
+								}
+							} else {
+								if(ChToJpNames.TryGetValue(str[..bracketEnd], out var jpName)) {
+									str = jpName + str[bracketEnd..];
+								}
 							}
 						}
 					}
-				}
-				if(useBig5) {
-					wr.Write(Big5.Encode(str));
-				} else {
-					try {
-						wr.Write(encoding.GetBytes(str.Replace('«', 'Ы').Replace('»', 'Я')));
-					} catch {
-						Console.WriteLine("Error on line: " + str);
-						throw;
+					if(useBig5) {
+						wr.Write(Big5.Encode(str));
+					} else {
+						try {
+							wr.Write(encoding.GetBytes(str.Replace('«', 'Ы').Replace('»', 'Я')));
+						} catch {
+							Console.WriteLine("Error on line: " + str);	
+							throw;
+						}
 					}
 				}
 				wr.Write((byte) 0);

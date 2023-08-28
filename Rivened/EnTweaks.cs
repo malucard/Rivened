@@ -41,16 +41,17 @@ namespace Rivened {
 		public static string ApplyEnTweaks(string replacement) {
 			replacement = replacement.Replace("】「", "】“")
 				.Replace("」%", "”%")
-				.Replace("--", "—");;
+				.Replace("--", "—");
+			var openIdx = 0;
 			var open = false;
 			for(int k = 0; k < replacement.Length; k++) {
 				if(replacement[k] == '\'') {
 					if(k + 1 >= replacement.Length || k == 0 ||
 							!(char.IsLetter(replacement[k - 1]) && (!open || char.IsLetter(replacement[k + 1])))) {
 						if(open) {
-							replacement = replacement[..k] + '’' + replacement[(k + 1)..];
+							replacement = replacement[..openIdx] + '‘' + replacement[(openIdx + 1)..k] + '’' + replacement[(k + 1)..];
 						} else {
-							replacement = replacement[..k] + '‘' + replacement[(k + 1)..];
+							openIdx = k;
 						}
 						open = !open;
 					}
@@ -60,9 +61,9 @@ namespace Rivened {
 			for(int k = 0; k < replacement.Length; k++) {
 				if(replacement[k] == '"') {
 					if(open) {
-						replacement = replacement[..k] + '”' + replacement[(k + 1)..];
+						replacement = replacement[..openIdx] + '“' + replacement[(openIdx + 1)..k] + '”' + replacement[(k + 1)..];
 					} else {
-						replacement = replacement[..k] + '“' + replacement[(k + 1)..];
+						openIdx = k;
 					}
 					open = !open;
 				}
@@ -132,6 +133,8 @@ namespace Rivened {
 						continue; // i *hope* this works
 					} else if(replacement[i] == '%' && i + 1 < replacement.Length && replacement[i + 1] != '%') {
 						i++;
+						continue;
+					} else if(replacement[i] == '⑩' || replacement[i] == '　') { // hotfix for the 11b dual scene
 						continue;
 					}
 					int idx;

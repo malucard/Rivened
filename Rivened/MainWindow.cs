@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,6 +21,7 @@ namespace Rivened {
 		[UI] private readonly Button dlg_sheets_btn_ok = null;
 		[UI] private readonly Button dlg_sheets_btn_cancel = null;
 		[UI] private readonly Button btn_revert = null;
+		[UI] private readonly Button btn_export = null;
 		[UI] private readonly Image img_is_loaded = null;
 		[UI] private readonly Box box_toolbar = null;
 		[UI] private readonly Box box_script_bar = null;
@@ -32,6 +34,7 @@ namespace Rivened {
 		[UI] private readonly Viewport textbox_viewport;
 		private readonly TextView txt_textbox = null;
 		private bool editingTextbox = false;
+		private volatile static bool loadingScript = false;
 		public static readonly string INI = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "rivened", "rivened.ini");
 		private readonly Dictionary<string, string> settings = new Dictionary<string, string>();
 		private static readonly Regex SheetsIdRegex = new Regex("^([A-Za-z0-9\\-_]){44}$");
@@ -94,16 +97,36 @@ namespace Rivened {
 					Program.Log("Failed to revert scripts, backup may have been deleted");
 				}
 			};
+			btn_export.Clicked += (sender, args) => {
+				if(LoadedGame.Instance == null) return;
+				if(!LoadedGame.Instance.ScriptsPrepared) return;
+				foreach(var entry in LoadedGame.Instance.ScriptAFS.Entries) {
+					if(LoadedGame.IsSpecial(entry.Name) || !LoadedGame.ShouldIgnore(entry.Name)) {
+						var decomp = LoadedGame.Instance.decompiler.Decompile(LoadedGame.Instance.ScriptAFS, entry);
+						if(decomp != null) {
+							using var file = LoadedGame.Instance.Path.ResolveRelativePath("FILE/SCENE00TXT/" + entry.Name + ".txt").Create(GLib.FileCreateFlags.ReplaceDestination, null);
+							var data = Encoding.UTF8.GetBytes(decomp);
+							file.WriteAll(data, (ulong) data.LongLength, out var bytesWritten, null);
+						} else {
+							Program.Log("Failed to export scripts");
+						}
+					}
+				}
+				Program.Log("Scripts exported successfully");
+			};
 			lst_scripts.RowSelected += (sender, args) => {
+				if(loadingScript) return;
+				loadingScript = true;
 				if(args.Row == null) {
 					editingTextbox = true;
 					txt_textbox.Buffer.Text = "";
 					editingTextbox = false;
 					txt_textbox.Editable = false;
 					UpdateState();
-					return;
+				} else {
+					RefreshScriptView();
 				}
-				RefreshScriptView();
+				loadingScript = false;
 			};
 			txt_textbox.Buffer.Changed += (sender, args) => {
 				if(!editingTextbox && lst_scripts.SelectedRow != null) {
@@ -194,7 +217,6 @@ namespace Rivened {
 						urls1.Clear();
 					}
 				});
-				dlThread.Start();
 				var dlThread2 = new Thread(() => {
 					var urls1 = new List<Task>();
 					var c = entries.Count;
@@ -206,6 +228,7 @@ namespace Rivened {
 						urls1.Clear();
 					}
 				});
+				dlThread.Start();
 				dlThread2.Start();
 				var urls1 = new List<Task>();
 				var c = entries.Count;
@@ -239,7 +262,9 @@ namespace Rivened {
 					var csvLines = new Dictionary<int, string>();
 					var csvDatas = new List<string>();
 					var csvDatasPostTitle = new List<string>();
+					var patches = new List<string>();
 					var titlesReached = false;
+					var curPatch = null as string;
 					var idOffset = 0;
 					foreach(var line_ in csv.Split('\n')) {
 						var line = line_;
@@ -254,10 +279,9 @@ namespace Rivened {
 									break;
 								}
 							}
-							if(id == 0) {
-								continue;
+							if(id != 0) {
+								id -= idOffset;
 							}
-							id -= idOffset;
 						}
 						int start;
 						if(hasQuote) {
@@ -289,11 +313,30 @@ namespace Rivened {
 								line = line.Remove(end, 1);
 								end = line.IndexOf('"', end + 1);
 							}
-							Debug.Assert(end != -1);
+							Trace.Assert(end != -1);
 						} else {
 							end = line.IndexOf(',', start + 1);
 						}
 						var tl = end == -1? line[start..]: line[start..end];
+						if(entry.Name != "DATA.BIN") {
+							if(tl.StartsWith("!patch:")) {
+								if(curPatch != null) patches.Add(curPatch);
+								curPatch = tl[6..].Trim();
+							} else if(tl.StartsWith("!patch")) {
+								if(curPatch != null) {
+									curPatch += '\n' + tl[6..].Trim();
+								} else {
+									curPatch = tl[6..].Trim();
+								}
+								continue;
+							} else if(curPatch != null) {
+								patches.Add(curPatch);
+								curPatch = null;
+							}
+							if(id == 0) {
+								continue;
+							}
+						}
 						if(line.Length != 0 && line[0] == '"') {
 							line = line[1..];
 						}
@@ -314,6 +357,9 @@ namespace Rivened {
 							csvLines[id] = tl;
 						}
 					}
+					if(curPatch != null) {
+						patches.Add(curPatch);
+					}
 					var choiceSetIdx = 0;
 					var lineIdx = 1;
 					var decompiled = LoadedGame.Instance.decompiler.Decompile(LoadedGame.Instance.ScriptAFS, entry);
@@ -324,7 +370,10 @@ namespace Rivened {
 					var datasPostTitleIdx = 0;
 					for(int j = 0; j < decompLines.Length; j++) {
 						var line = decompLines[j];
-						if(line.StartsWith("name.")) {
+						var dotIdx = line.IndexOf('.');
+						if(dotIdx == -1) continue;
+						var lineOp = line[(line.LastIndexOf(' ', dotIdx - 1) + 1)..dotIdx];
+						if(lineOp == "name") {
 							if(datasIdx < csvDatas.Count) {
 								var tl = csvDatas[datasIdx++];
 								if(tl != "") {
@@ -332,7 +381,7 @@ namespace Rivened {
 									modified = true;
 								}
 							}
-						} else if(line.StartsWith("route.") || line.StartsWith("route2.")) {
+						} else if(lineOp == "route" || lineOp == "route2") {
 							if(datasIdx < csvDatas.Count) {
 								var tl = csvDatas[datasIdx++];
 								if(tl != "" && tl.Contains("//")) {
@@ -341,7 +390,7 @@ namespace Rivened {
 									modified = true;
 								}
 							}
-						} else if(line.StartsWith("string.")) {
+						} else if(lineOp == "string") {
 							if(titlesReached? datasPostTitleIdx < csvDatasPostTitle.Count: datasIdx < csvDatas.Count) {
 								var tl = titlesReached? csvDatasPostTitle[datasPostTitleIdx++]: csvDatas[datasIdx++];
 								if(tl != "") {
@@ -349,7 +398,7 @@ namespace Rivened {
 									modified = true;
 								}
 							}
-						} else if(line.StartsWith("title.")) {
+						} else if(lineOp == "title") {
 							titlesReached = true;
 							if(datasPostTitleIdx < csvDatasPostTitle.Count) {
 								var tl = csvDatasPostTitle[datasPostTitleIdx++];
@@ -358,7 +407,7 @@ namespace Rivened {
 									modified = true;
 								}
 							}
-						} else if(line.StartsWith("select.")) {
+						} else if(lineOp == "select") {
 							var tls = csvChoices[choiceSetIdx++];
 							if(tls.Length > 1) {
 								int tlIdx = 0;
@@ -367,7 +416,7 @@ namespace Rivened {
 								while((strIdx = line.IndexOf('§', strIdx + 1)) != -1) {
 									int start = strIdx + 1;
 									int end = line.IndexOf('§', start);
-									Debug.Assert(end != -1);
+									Trace.Assert(end != -1);
 									tl = tls[tlIdx].Trim();
 									if(tl != "") {
 										line = line[..start] + tl + line[end..];
@@ -382,7 +431,7 @@ namespace Rivened {
 								decompLines[j] = line;
 								modified = true;
 							}
-						} else if(line.StartsWith("message.")) {
+						} else if(lineOp == "message") {
 							int strMarker = line.IndexOf('@');
 							if(csvLines.TryGetValue(lineIdx, out var replacement)) {
 								var terminatorReplaceIdx = replacement.IndexOf("%R");
@@ -425,8 +474,19 @@ namespace Rivened {
 							lineIdx++;
 						}
 					}
-					if(modified) { // the modified flag might not be necessary
-						LoadedGame.Instance.decompiler.ChangeDump(entry.Name, string.Join('\n', decompLines));
+					if(modified || patches.Count != 0) { // the modified flag might not be necessary
+						var finalized = string.Join('\n', decompLines);
+						if(patches.Count != 0) {
+							(var ok, var txt) = ScriptCompiler.ApplyPatches(entry.Name, finalized, patches.ToArray());
+							if(ok) {
+								Program.Log(entry.Name + ": success applying patches");
+								finalized = txt;
+							} else {
+								Program.Log(entry.Name + ": error applying patch " + txt);
+								return;
+							}
+						}
+						LoadedGame.Instance.decompiler.ChangeDump(entry.Name, finalized);
 						RefreshScriptView();
 					}
 				}

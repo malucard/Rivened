@@ -87,7 +87,7 @@ namespace Rivened {
 			return res.ToArray();
 		}
 		
-		public static string Decode(byte[] data) {
+		public static string Decode(Span<byte> data) {
 			var res = "";
 			for(int i = 0; i < data.Length; i++) {
 				if(data[i] <= 127) {
@@ -97,7 +97,7 @@ namespace Rivened {
 					if(val == 0) {
 						// here for debugging, but must be silent because this path is used for switching to sjis decoding
 						//Console.WriteLine(string.Format("Big5 decoding failed for character 0x{0:X}, string by default decoder: \"{1:}\"", (int) data[i] << 8 | data[i + 1], Encoding.GetEncoding("big5").GetString(data)));
-						throw new Exception("Big5 decoding failed");
+						throw new DecoderFallbackException("Big5 decoding failed");
 					}
 					res += char.ConvertFromUtf32(val);
 					i++;
@@ -147,6 +147,8 @@ namespace Rivened {
 					}
 				}
 			}
+			BMP_TO_BIG5['⑳'] = BMP_TO_BIG5['⑩'];
+			BMP_TO_BIG5['　'] = BMP_TO_BIG5['⑩'];
 		}
 
 		public static readonly ushort[] BMP_TO_BIG5 = new ushort[0xFFFF];

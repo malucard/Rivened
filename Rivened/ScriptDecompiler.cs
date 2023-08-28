@@ -20,7 +20,7 @@ namespace Rivened {
 		}
 
 		public void ChangeDump(string filename, string data) {
-			Debug.Assert(Dumps.ContainsKey(filename));
+			Trace.Assert(Dumps.ContainsKey(filename));
 			Dumps[filename] = data;
 			Modified.Add(filename);
 		}
@@ -33,74 +33,81 @@ namespace Rivened {
 		}
 
 		public string Decompile(string filename, byte[] bytes) {
-			if(Dumps.TryGetValue(filename, out var dump)) {
-				return dump;
+			if(Dumps.TryGetValue(filename, out var cached)) {
+				return cached;
 			}
 			if(filename.StartsWith("DATA")) {
 				return DecompileData(filename, bytes);
 			}
-			bool retried = false;
+			var retried = false;
 			retry:
-			var res = "header." + bytes[0] + ' ' + BitConverter.ToString(bytes[1..bytes[0]]);
-			int pos = bytes[0];
-			var endOfMessages = 0;
-			while(true) {
-				byte op = bytes[pos];
-				byte len = bytes[pos + 1];
-				pos += 2;
-				if(op == (byte) TokenType.message) {
-					try {
-						res += DumpCmdWithStrings(bytes, ref endOfMessages, "message", len - 2, true, pos, 4);
-					} catch {
-						if(retried) {
-							throw new Exception("could not decode script");
+			var res = "header." + bytes[0] + ' ' + BitConverter.ToString(bytes, 1, bytes[0] - 1);
+			var pos = (int) bytes[0];
+			var strsBounds = (0xFFFFFF, 0);
+			var offsetsToLines = new Dictionary<uint, int>(); // (binary location, decompiled string position) the first is for the header line
+			var labels = new SortedSet<uint>(); // destination position
+			try {
+				while(true) {
+					offsetsToLines[(uint) pos] = res.Length;
+					var op = bytes[pos];
+					var fullLen = bytes[pos + 1]; // length of opcode + length + data
+					if(fullLen == 0) {
+						break;
+					}
+					pos += 2;
+					var len = (int) fullLen - 2; // now pos and len are for the data, excluding the opcode and length
+					var instDump = '\n' + ((Opcode) op).ToString() + '.' + fullLen;
+					if(op == (byte) Opcode.message) {
+						instDump += ' ' + BitConverter.ToString(bytes, pos, 4) + "-S-" + BitConverter.ToString(bytes, pos + 6, len - 6) + DumpStrings(bytes, ref strsBounds, pos, 4);
+					} else if(op == (byte) Opcode.Loop_Cond) {
+						var dst = (uint) bytes[pos] | (uint) bytes[pos + 1] << 8;
+						labels.Add(dst);
+						instDump += " &L" + dst.ToString("X4") + '-' + BitConverter.ToString(bytes, pos + 2, len - 2);
+					} else if(op == (byte) Opcode.select) {
+						int count = fullLen / 8 - 1;
+						var choices = new int[count];
+						instDump += ' ' + BitConverter.ToString(bytes, pos, 6);
+						for(int i = 0; i < count; i++) {
+							var choicePos = i * 8 + 6;
+							instDump += "-S-" + BitConverter.ToString(bytes, pos + choicePos + 2, 6);
+							choices[i] = choicePos;
 						}
-						retried = true;
-						UseBig5 = !UseBig5;
-						goto retry;
-					}
-				} else if(op == (byte) TokenType.select) {
-					int count = len / 8 - 1;
-					var choices = new int[count];
-					for(int i = 0; i < count; i++) {
-						choices[i] = i * 8 + 6;
-					}
-					try {
-						res += DumpCmdWithStrings(bytes, ref endOfMessages, "select", len - 2, true, pos, choices);
-					} catch {
-						if(retried) {
-							throw new Exception("could not decode script");
+						if(len > count * 8 + 6) {
+							instDump += '-' + BitConverter.ToString(bytes, count * 8 + 6, len - count * 8 - 6);
 						}
-						retried = true;
-						UseBig5 = !UseBig5;
-						goto retry;
+						instDump += DumpStrings(bytes, ref strsBounds, pos, choices);
+					} else if(op == (byte) Opcode.select2) { // wait, why? isn't this unused, what even was it? was this branch by mistake?
+						instDump += ' ' + DumpCmdWithStrings(bytes, ref strsBounds, len, pos, 4);
+					} else if(len > 0) {
+						instDump += ' ' + BitConverter.ToString(bytes, pos, len);
 					}
-				} else if(op == (byte) TokenType.select2) {
-					try {
-						res += DumpCmdWithStrings(bytes, ref endOfMessages, "select2", len - 2, true, pos, 4);
-					} catch {
-						if(retried) {
-							throw new Exception("could not decode script");
-						}
-						retried = true;
-						UseBig5 = !UseBig5;
-						goto retry;
+					res += instDump;
+					pos += len;
+					if(pos >= strsBounds.Item1) {
+						break;
 					}
-				} else if(len > 2) {
-					if(pos + len - 2 > bytes.Length) {
-						throw new Exception("OOB " + pos + ".." + (pos + len - 2) + " in script of len " + bytes.Length);
-					}
-					res += '\n' + ((TokenType) op).ToString() + '.' + len + ' ' + BitConverter.ToString(bytes[pos..(pos + len - 2)]);
-				} else if(len == 2) {
-					res += '\n' + ((TokenType) op).ToString() + '.' + len;
+					//if(op == 0x0D) {
+					//	break;
+					//}
 				}
-				pos += len - 2;
-				if(pos > endOfMessages) endOfMessages = pos;
-				if(op == 0x0D) {
-					break;
+			} catch(DecoderFallbackException e) {
+				if(retried) {
+					throw new AggregateException(e, new Exception("could not decode script " + filename + ": " + e.Message + ", from " + e.Source));
+				}
+				retried = true;
+				UseBig5 = !UseBig5;
+				goto retry;
+			}
+			res += "\ntrailer." + (bytes.Length - strsBounds.Item2) + ' ' + BitConverter.ToString(bytes, strsBounds.Item2);
+			if(labels.Count != 0) {
+				int offset = 1;
+				foreach(var location in labels) {
+					var labelText = "&L" + location.ToString("X4") + ": ";
+					var linePos = offsetsToLines[location] + offset;
+					res = res[..linePos] + labelText + res[linePos..];
+					offset += labelText.Length;
 				}
 			}
-			res += "\ntrailer." + (bytes.Length - endOfMessages) + ' ' + BitConverter.ToString(bytes[endOfMessages..]);
 			Dumps[filename] = res;
 			return res;
 		}
@@ -140,31 +147,58 @@ namespace Rivened {
 			new DataSectionInfo("footer", 0x14, 0x14)
 		};
 
-		private string DumpCmdWithStrings(byte[] bytes, ref int endOfStrings, string name, int len, bool isScriptCmd, int dataPos, params int[] strsPos) {
-			string res = '\n' + name + '.' + (isScriptCmd? len + 2: len) + ' ';
-			if(strsPos[0] != 0) {
-				res += BitConverter.ToString(bytes[dataPos..(dataPos + strsPos[0])]) + '-';
+		private string DumpStrings(byte[] bytes, ref (int, int) strsBounds, int dataPos, params int[] strsPos) {
+			string res = "";
+			for(int i = 0; i < strsPos.Length; i++) {
+				var strStart = bytes[dataPos + strsPos[i]] | bytes[dataPos + strsPos[i] + 1] << 8;
+				int strEnd = strStart;
+				while(bytes[strEnd] != 0) {
+					strEnd++;
+				}
+				if(strStart < strsBounds.Item1) {
+					strsBounds.Item1 = strStart;
+				}
+				if(strEnd + 1 > strsBounds.Item2) {
+					strsBounds.Item2 = strEnd + 1;
+				}
+				var str = UseBig5? Big5.Decode(bytes.AsSpan(strStart..strEnd)):
+				 	Program.SJIS.GetString(bytes.AsSpan(strStart..strEnd));
+				if(i + 1 == strsPos.Length) {
+					res += " @" + str;
+				} else {
+					res += " §" + str + '§';
+				}
 			}
+			return res;
+		}
+
+		private string DumpCmdWithStrings(byte[] bytes, ref (int, int) strsBounds, int len, int dataPos, params int[] strsPos) {
+			var res = strsPos[0] != 0? BitConverter.ToString(bytes, dataPos, strsPos[0]) + '-': "";
 			var strs = new string[strsPos.Length];
 			for(int i = 0; i < strsPos.Length; i++) {
 				if(i + 1 == strsPos.Length) {
 					if(strsPos[i] + 2 < len) {
-						res += "S-" + BitConverter.ToString(bytes[(dataPos + strsPos[i] + 2)..(dataPos + len)]);
+						var start = strsPos[i] + 2;
+						res += "S-" + BitConverter.ToString(bytes, dataPos + start, len - start);
 					} else {
 						res += "S";
 					}
 				} else {
-					res += "S-" + BitConverter.ToString(bytes[(dataPos + strsPos[i] + 2)..(dataPos + strsPos[i + 1])]) + '-';
+					var start = strsPos[i] + 2;
+					res += "S-" + BitConverter.ToString(bytes, dataPos + start, strsPos[i + 1] - start) + '-';
 				}
 				var strStart = BitConverter.ToUInt16(bytes, dataPos + strsPos[i]);
 				int strEnd = strStart;
 				while(bytes[strEnd] != 0) {
 					strEnd++;
 				}
-				if(strEnd + 1 > endOfStrings) {
-					endOfStrings = strEnd + 1;
+				if(strStart < strsBounds.Item1) {
+					strsBounds.Item1 = strStart;
 				}
-				strs[i] = UseBig5? Big5.Decode(bytes[strStart..strEnd]):
+				if(strEnd + 1 > strsBounds.Item2) {
+					strsBounds.Item2 = strEnd + 1;
+				}
+				strs[i] = UseBig5? Big5.Decode(bytes.AsSpan(strStart..strEnd)):
 				 	Program.SJIS.GetString(bytes.AsSpan(strStart..strEnd));
 			}
 			for(int i = 0; i < strs.Length; i++) {
@@ -181,75 +215,50 @@ namespace Rivened {
 			if(Dumps.TryGetValue(filename, out var dump)) {
 				return dump;
 			}
-			bool retried = false;
+			var retried = false;
 			retry:
-			var res = "header." + bytes[0] + ' ' + BitConverter.ToString(bytes[1..bytes[0]]);
-			int pos = bytes[0];
-			int endOfMessages = 0;// = encoding.BodyName == "big5"? 0x5733: 0x5ACD;
-			for(int i = 0; i < SECTIONS.Length; i++) {
-				var section = SECTIONS[i];
-				var endOfSection = pos + section.SizeJp;
-				//if(encoding.BodyName == "big5") {
-				//	endOfSection += section.SizeDiffCn;
-				//}
-				while(pos < endOfSection) {
-					if(section.Name == "name") {
-						try {
-							res += DumpCmdWithStrings(bytes, ref endOfMessages, section.Name, section.ItemLen, false, pos, 0, 4);
-						} catch {
-							if(retried) {
-								throw new Exception("could not decode DATA.BIN");
-							}
-							retried = true;
-							UseBig5 = !UseBig5;
-							goto retry;
+			var res = "header." + bytes[0] + ' ' + BitConverter.ToString(bytes, 1, bytes[0] - 1);
+			var pos = (int) bytes[0];
+			var strsBounds = (0xFFFFFF, 0);
+			try {
+				for(int i = 0; i < SECTIONS.Length; i++) {
+					var section = SECTIONS[i];
+					var endOfSection = pos + section.SizeJp;
+					//if(encoding.BodyName == "big5") {
+					//	endOfSection += section.SizeDiffCn;
+					//}
+					while(pos < endOfSection) {
+						var instDump = '\n' + section.Name + '.' + section.ItemLen + ' ';
+						if(section.Name == "name") {
+							instDump += DumpCmdWithStrings(bytes, ref strsBounds, section.ItemLen, pos, 0, 4);
+						} else if(section.Name == "route") {
+							instDump += DumpCmdWithStrings(bytes, ref strsBounds, section.ItemLen, pos, 4, 8);
+						} else if(section.Name == "route2") {
+							instDump += DumpCmdWithStrings(bytes, ref strsBounds, section.ItemLen, pos, 8, 12);
+						} else if(section.Name == "scene" || section.Name == "string" || section.Name == "title") {
+							instDump += DumpCmdWithStrings(bytes, ref strsBounds, section.ItemLen, pos, 0);
+						} else {
+							instDump += BitConverter.ToString(bytes, pos, section.ItemLen);
 						}
-					} else if(section.Name == "route") {
-						try {
-							res += DumpCmdWithStrings(bytes, ref endOfMessages, section.Name, section.ItemLen, false, pos, 4, 8);
-						} catch {
-							if(retried) {
-								throw new Exception("could not decode DATA.BIN");
-							}
-							retried = true;
-							UseBig5 = !UseBig5;
-							goto retry;
-						}
-					} else if(section.Name == "route2") {
-						try {
-							res += DumpCmdWithStrings(bytes, ref endOfMessages, section.Name, section.ItemLen, false, pos, 8, 12);
-						} catch {
-							if(retried) {
-								throw new Exception("could not decode DATA.BIN");
-							}
-							retried = true;
-							UseBig5 = !UseBig5;
-							goto retry;
-						}
-					} else if(section.Name == "scene" || section.Name == "string" || section.Name == "title") {
-						try {
-							res += DumpCmdWithStrings(bytes, ref endOfMessages, section.Name, section.ItemLen, false, pos, 0);
-						} catch {
-							if(retried) {
-								throw new Exception("could not decode DATA.BIN");
-							}
-							retried = true;
-							UseBig5 = !UseBig5;
-							goto retry;
-						}
-					} else {
-						res += '\n' + section.Name + '.' + section.ItemLen + ' ' + BitConverter.ToString(bytes[pos..(pos + section.ItemLen)]);
+						res += instDump;
+						pos += section.ItemLen;
 					}
-					pos += section.ItemLen;
 				}
+			} catch(DecoderFallbackException) {
+				if(retried) {
+					throw new Exception("could not decode DATA.BIN");
+				}
+				retried = true;
+				UseBig5 = !UseBig5;
+				goto retry;
 			}
-			res += "\ntrailer." + (bytes.Length - endOfMessages) + ' ' + BitConverter.ToString(bytes[endOfMessages..]);
+			res += "\ntrailer." + (bytes.Length - strsBounds.Item2) + ' ' + BitConverter.ToString(bytes, strsBounds.Item2);
 			Dumps[filename] = res;
 			return res;
 		}
 	}
 
-	public enum TokenType {
+	public enum Opcode {
 		ext_Goto = 0x09,
 		ext_Call = 0x0A,
 		ext_Goto2 = 0x0B,

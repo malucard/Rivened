@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Threading.Tasks;
 using IFile = GLib.IFile;
 
@@ -46,7 +45,7 @@ namespace Rivened {
 			Path = path;
 			if(Path.ResolveRelativePath("FILE/SCENE00.afs")?.Exists == true &&
 					Path.ResolveRelativePath("FILE/SCENE00.afs.bak")?.Exists == true) {
-				Debug.Assert(LoadScripts());
+				Trace.Assert(LoadScripts());
 			}
 		}
 
@@ -97,8 +96,8 @@ namespace Rivened {
 				if((IsSpecial(entry.Name) || !ShouldIgnore(entry.Name)) && decompiler.CheckAndClearModified(entry.Name)) {
 					var fn = () => {
 						if(ScriptCompiler.Compile(entry.Name, decompiler.Decompile(ScriptAFS, entry), out var arr, out var err)) {
-							Debug.Assert(arr.Length != 0);
-							Debug.Assert(arr[0] != 0);
+							Trace.Assert(arr.Length != 0);
+							Trace.Assert(arr[0] != 0);
 							entry.SetData(arr);
 						} else {
 							err = entry.Name + ':' + err;

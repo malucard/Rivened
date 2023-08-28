@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -37,7 +36,7 @@ namespace Rivened {
 				if(Data != null) {
 					return Data;
 				}
-				Debug.Assert(Position != 0);
+				Trace.Assert(Position != 0);
 				using var handle = File.OpenRead(afs.LoadPath.Path);
 				Data = new byte[Size];
 				handle.Position = Position;
@@ -68,7 +67,7 @@ namespace Rivened {
 				throw new Exception(loadPath + " is not an AFS file, sig is " + string.Format("{x}", sig));
 			}
 			var count = afs.ReadUInt32();
-			Debug.Assert(count <= 0xfffff);
+			Trace.Assert(count <= 0xfffff);
 			Entries = new Entry[count];
 			uint end = 0;
 			for(uint i = 0; i < count; i++) {
