@@ -283,6 +283,7 @@ namespace Rivened {
 								id -= idOffset;
 							}
 						}
+						int jpLineEnd;
 						int start;
 						if(hasQuote) {
 							start = line.IndexOf('"', 1);
@@ -290,15 +291,17 @@ namespace Rivened {
 								start = line.IndexOf('"', start + 2);
 							}
 							if(start == -1) continue;
+							jpLineEnd = start;
 							start = line.IndexOf(',', start + 1);
 						} else {
 							start = line.IndexOf(',');
+							jpLineEnd = start;
 						}
 						if(start == -1) continue;
-						var jpLine = line[..start];
+						var jpLine = line[..jpLineEnd];
 						var isChoice = false;
 						if(entry.Name != "DATA.BIN") {
-							if(jpLine.IndexOf('/') != jpLine.LastIndexOf('/')) {
+							if(jpLine.EndsWith('/') && jpLine.IndexOf('/') != jpLine.LastIndexOf('/')) {
 								idOffset++;
 								//continue;
 								isChoice = true;

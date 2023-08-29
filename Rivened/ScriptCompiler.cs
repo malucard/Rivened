@@ -257,7 +257,7 @@ namespace Rivened {
 						wr.Write(Big5.Encode(str));
 					} else {
 						try {
-							wr.Write(encoding.GetBytes(str.Replace('«', 'Ы').Replace('»', 'Я')));
+							wr.Write(encoding.GetBytes(str));
 						} catch {
 							Console.WriteLine("Error on line: " + str);	
 							throw;
