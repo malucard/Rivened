@@ -59,6 +59,8 @@ namespace Rivened {
 					var instDump = '\n' + ((Opcode) op).ToString() + '.' + fullLen;
 					if(op == (byte) Opcode.message) {
 						instDump += ' ' + BitConverter.ToString(bytes, pos, 4) + "-S-" + BitConverter.ToString(bytes, pos + 6, len - 6) + DumpStrings(bytes, ref strsBounds, pos, 4);
+					} else if(op == (byte) Opcode.movie_start) {
+						instDump += ' ' + "S-" + BitConverter.ToString(bytes, pos + 2, len - 2) + DumpStrings(bytes, ref strsBounds, pos, 0);
 					} else if(op == (byte) Opcode.Loop_Cond) {
 						var dst = (uint) bytes[pos] | (uint) bytes[pos + 1] << 8;
 						labels.Add(dst);
