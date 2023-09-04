@@ -118,9 +118,9 @@ namespace Rivened {
 				if(loadingScript) return;
 				loadingScript = true;
 				if(args.Row == null) {
+					txt_textbox.Editable = true;
 					editingTextbox = true;
-					txt_textbox.Buffer.Text = "";
-					editingTextbox = false;
+					txt_textbox.Buffer.Clear();
 					txt_textbox.Editable = false;
 					UpdateState();
 				} else {
@@ -129,7 +129,9 @@ namespace Rivened {
 				loadingScript = false;
 			};
 			txt_textbox.Buffer.Changed += (sender, args) => {
-				if(!editingTextbox && lst_scripts.SelectedRow != null) {
+				if(editingTextbox) {
+					editingTextbox = false;
+				} else if(lst_scripts.SelectedRow != null) {
 					LoadedGame.Instance.decompiler.ChangeDump(((Label) lst_scripts.SelectedRow.Child).Text, txt_textbox.Buffer.Text);
 				}
 			};
@@ -420,16 +422,20 @@ namespace Rivened {
 									int start = strIdx + 1;
 									int end = line.IndexOf('§', start);
 									Trace.Assert(end != -1);
-									tl = tls[tlIdx].Trim();
-									if(tl != "") {
-										line = line[..start] + tl + line[end..];
+									if(tls.Length > tlIdx) {
+										tl = tls[tlIdx].Trim();
+										if(tl != "") {
+											line = line[..start] + tl + line[end..];
+										}
 									}
 									strIdx = line.IndexOf('§', start); // must be redone due to the reconstruction above
 									tlIdx++;
 								}
-								tl = tls[tlIdx].Trim();
-								if(tl != "") {
-									line = line[..(line.IndexOf('@', strIdx + 1) + 1)] + tl;
+								if(tls.Length > tlIdx) {
+									tl = tls[tlIdx].Trim();
+									if(tl != "") {
+										line = line[..(line.IndexOf('@', strIdx + 1) + 1)] + tl;
+									}
 								}
 								decompLines[j] = line;
 								modified = true;
@@ -437,6 +443,7 @@ namespace Rivened {
 						} else if(lineOp == "message") {
 							int strMarker = line.IndexOf('@');
 							if(csvLines.TryGetValue(lineIdx, out var replacement)) {
+								replacement = replacement.Trim();
 								var terminatorReplaceIdx = replacement.IndexOf("%R");
 								string term = null;
 								if(terminatorReplaceIdx != -1) {
@@ -538,12 +545,13 @@ namespace Rivened {
 		}
 
 		public void RefreshScriptView() {
-			txt_textbox.Editable = true;
 			if(lst_scripts.SelectedRow == null) {
-				txt_textbox.Buffer.Text = "";
-			}
-			txt_textbox.Editable = lst_scripts.SelectedRow != null;
-			if(lst_scripts.SelectedRow != null) {
+				txt_textbox.Editable = true;
+				editingTextbox = true;
+				txt_textbox.Buffer.Clear();
+				txt_textbox.Editable = false;
+			} else {
+				txt_textbox.Editable = true;
 				string lookingFor = ((Label) lst_scripts.SelectedRow.Child).Text;
 				AFS.Entry entry = null;
 				foreach(var e in LoadedGame.Instance.ScriptAFS.Entries) {
@@ -556,9 +564,8 @@ namespace Rivened {
 					throw new Exception("Could not find " + lookingFor);
 				}
 				editingTextbox = true;
+				txt_textbox.Buffer.Clear();
 				txt_textbox.Buffer.Text = LoadedGame.Instance.decompiler.Decompile(LoadedGame.Instance.ScriptAFS, entry);
-				editingTextbox = false;
-				UpdateState();
 			}
 		}
 
