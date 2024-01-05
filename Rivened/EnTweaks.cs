@@ -86,19 +86,15 @@ namespace Rivened {
 						replacement = replacement[..k] + UPPER_ITALICS[replacement[k] - 'A'] + replacement[(k + 1)..];
 					} else if(replacement[k] >= 'a' && replacement[k] <= 'z') {
 						replacement = replacement[..k] + LOWER_ITALICS[replacement[k] - 'a'] + replacement[(k + 1)..];
-					} else if(replacement[k] == 'É') {
-						replacement = replacement[..k] + 'Щ' + replacement[(k + 1)..];
 					} else if(replacement[k] == 'Ï') {
 						replacement = replacement[..k] + 'Ъ' + replacement[(k + 1)..];
 					} else if(replacement[k] == 'é') {
-						replacement = replacement[..k] + 'щ' + replacement[(k + 1)..];
+						replacement = replacement[..k] + 'Э' + replacement[(k + 1)..];
 					} else if(replacement[k] == 'ï') {
 						replacement = replacement[..k] + 'ъ' + replacement[(k + 1)..];
 					}
 				} else {
-					if(replacement[k] == 'É') {
-						replacement = replacement[..k] + 'Э' + replacement[(k + 1)..];
-					} else if(replacement[k] == 'Ï') {
+					if(replacement[k] == 'Ï') {
 						replacement = replacement[..k] + 'Ю' + replacement[(k + 1)..];
 					} else if(replacement[k] == 'é') {
 						replacement = replacement[..k] + 'э' + replacement[(k + 1)..];
@@ -106,6 +102,8 @@ namespace Rivened {
 						replacement = replacement[..k] + 'ю' + replacement[(k + 1)..];
 					} else if(replacement[k] == 'ä') {
 						replacement = replacement[..k] + 'ь' + replacement[(k + 1)..];
+					} else if(replacement[k] == 'ö') {
+						replacement = replacement[..k] + 'я' + replacement[(k + 1)..];
 					}
 				}
 			}
