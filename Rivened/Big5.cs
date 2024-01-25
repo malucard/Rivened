@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Text;
 
 namespace Rivened {
@@ -19,18 +18,19 @@ namespace Rivened {
 				ushort val = BMP_TO_BIG5[full];
 				if(val == 0) {
 					if((full >= 0x4E00 && full <= 0x9FBF) || (full >= 0xFF66 && full <= 0xFF9F)) {
-						val = '?';
+						val = BMP_TO_BIG5['?'];
 					} else if(full == '♪') {
-						val = 'Ь';
+						val = BMP_TO_BIG5['Ь'];
 					} else if(full == '・') {
-						val = '‧';
+						val = BMP_TO_BIG5['‧'];
 					} else if(full == '―') { // do not use this character in script
-						val = '-';
+						val = BMP_TO_BIG5['-'];
 					} else if(full == '´') {
-						val = 'Ы';
+						val = BMP_TO_BIG5['Ы'];
 					} else if(full == '｀') {
-						val = 'Я';
-					} else {
+						val = BMP_TO_BIG5['Я'];
+					}
+					if(val == 0) {
 						throw new Exception(string.Format("Big5 encoding failed for character '{0:}' U+{1:X} in string \"{2:}\"", char.ConvertFromUtf32(full), full, str));
 					}
 				}
@@ -58,29 +58,36 @@ namespace Rivened {
 					res.Add((byte) full);
 				} else if(full <= 0xFFFF) {
 					ushort val = BMP_TO_BIG5[full];
-					if(val == 0) { // TODO in font: map something to ♪
-						if((full >= 0x4E00 && full <= 0x9FBF) || full == '♪' || (full >= 0xFF66 && full <= 0xFF9F)) {
-							val = '?';
-						} else if(full == '・') { // TODO in font: map ‧ to ・
-							val = '‧';
+					if(val == 0) {
+						if((full >= 0x4E00 && full <= 0x9FBF) || (full >= 0xFF66 && full <= 0xFF9F)) {
+							val = BMP_TO_BIG5['?'];
+						} else if(full == '♪') {
+							val = BMP_TO_BIG5['Ь'];
+						} else if(full == '・') {
+							val = BMP_TO_BIG5['‧'];
 						} else if(full == '―') { // do not use this character in script
-							val = '-';
-						} else if(full == '´') { // TODO in font: map Ы to ´
-							val = 'Ы';
-						} else if(full == '｀') { // TODO in font: map Я to ｀
-							val = 'Я';
-						} else {
+							val = BMP_TO_BIG5['-'];
+						} else if(full == '´') {
+							val = BMP_TO_BIG5['Ы'];
+						} else if(full == '｀') {
+							val = BMP_TO_BIG5['Я'];
+						}
+						if(val == 0) {
 							throw new Exception(string.Format("Big5 encoding failed for character '{0:}' U+{1:X} in string \"{2:}\"", char.ConvertFromUtf32(full), full, str));
 						}
 					}
-					res.Add((byte) (val >> 8));
+					if(val >> 8 != 0) {
+						res.Add((byte) (val >> 8));
+					}
 					res.Add((byte) (val & 0xFF));
 				} else {
 					ushort val = REST_TO_BIG5[(uint) full];
 					if(val == 0) {
 						throw new Exception(string.Format("Big5 encoding failed for character '{0:}' U+{1:X} in string \"{2:}\"", char.ConvertFromUtf32(full), full, str));
 					}
-					res.Add((byte) (val >> 8));
+					if(val >> 8 != 0) {
+						res.Add((byte) (val >> 8));
+					}
 					res.Add((byte) (val & 0xFF));
 				}
 			}
@@ -149,6 +156,61 @@ namespace Rivened {
 			}
 			BMP_TO_BIG5['⑳'] = BMP_TO_BIG5['⑩'];
 			BMP_TO_BIG5['　'] = BMP_TO_BIG5['⑩'];
+			ushort ctl = 0;
+			BMP_TO_BIG5['а'] = nextCtl(ref ctl); // 0x01 = fontidx 0x1d2e
+			BMP_TO_BIG5['б'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['в'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['г'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['д'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['е'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['ё'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['ж'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['з'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['и'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['й'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['к'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['л'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['м'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['н'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['о'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['п'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['р'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['с'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['т'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['у'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['ф'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['х'] = nextCtl(ref ctl);
+			//BMP_TO_BIG5['ц'] = nextCtl(ref ctl);
+			//BMP_TO_BIG5['ч'] = nextCtl(ref ctl);
+			//BMP_TO_BIG5['ш'] = nextCtl(ref ctl);
+			//BMP_TO_BIG5['щ'] = nextCtl(ref ctl);
+			//BMP_TO_BIG5['ъ'] = nextCtl(ref ctl);
+			//BMP_TO_BIG5['ы'] = nextCtl(ref ctl);
+			//BMP_TO_BIG5['ь'] = nextCtl(ref ctl);
+			//BMP_TO_BIG5['э'] = nextCtl(ref ctl);
+			//BMP_TO_BIG5['ю'] = nextCtl(ref ctl);
+			//BMP_TO_BIG5['я'] = nextCtl(ref ctl);
+
+			//BMP_TO_BIG5['Ψ'] = nextCtl(ref ctl);
+			BMP_TO_BIG5['‘'] = nextCtl(ref ctl); // 0x1a = fontidx 101
+			BMP_TO_BIG5['’'] = nextCtl(ref ctl); // 0x1b = fontidx 102
+			BMP_TO_BIG5['“'] = nextCtl(ref ctl); // 0x1c = fontidx 103
+			BMP_TO_BIG5['”'] = nextCtl(ref ctl); // 0x1d = fontidx 104
+			BMP_TO_BIG5['—'] = nextCtl(ref ctl); // 0x1e = fontidx 24
+			BMP_TO_BIG5['…'] = nextCtl(ref ctl); // 0x1f = fontidx 11
+			if(ctl < 31) {
+				throw new Exception("DEV: too few shorthand characters");
+			}
+		}
+
+		private static ushort nextCtl(ref ushort ctl) {
+			ctl++;
+			if(ctl >= 32) {
+				throw new Exception("DEV: too many shorthand characters");
+			} else if(ctl == 9 || ctl == 10) {
+				ctl = 11;
+			}
+			return ctl;
 		}
 
 		public static readonly ushort[] BMP_TO_BIG5 = new ushort[0xFFFF];

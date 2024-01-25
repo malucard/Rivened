@@ -77,7 +77,11 @@ namespace Rivened {
 					k++;
 					continue;
 				}
-				if(replacement[k] == '*') {
+				if(k + 2 < replacement.Length && replacement[k] == '.' && replacement[k + 1] == '.' && replacement[k + 2] == '.') {
+					replacement = replacement[..k] + '…' + replacement[(k + 3)..];
+				//} else if(k + 1 < replacement.Length && replacement[k] == ',' && replacement[k + 1] == ' ') {
+				//	replacement = replacement[..k] + 'ы' + replacement[(k + 2)..];
+				} else if(replacement[k] == '*') {
 					replacement = replacement[..k] + replacement[(k + 1)..];
 					open = !open;
 					k--;
