@@ -468,17 +468,18 @@ namespace Rivened {
 											term ??= line[endQuote..];
 											decompLines[j] = line[..startQuote] + replacement + term;
 										}
-									}
-								} else {
-									if(term == null) {
-										int terminatorStart = line.Length - 1;
-										while(terminatorStart > strMarker + 1 && line[terminatorStart - 1] == '%' && line[terminatorStart] != '%') {
-											terminatorStart -= 2;
-										}
-										term = line[(terminatorStart + 1)..];
-									}
-									decompLines[j] = line[..(strMarker + 1)] + replacement + term;
+										goto handledLineAsSpeech;
+									} // there is one line that is surrounded by 【 but is not speech, so let's allow that to happen
 								}
+								if(term == null) {
+									int terminatorStart = line.Length - 1;
+									while(terminatorStart > strMarker + 1 && line[terminatorStart - 1] == '%' && line[terminatorStart] != '%') {
+										terminatorStart -= 2;
+									}
+									term = line[(terminatorStart + 1)..];
+								}
+								decompLines[j] = line[..(strMarker + 1)] + replacement + term;
+								handledLineAsSpeech:
 								modified = true;
 							}
 							lineIdx++;
