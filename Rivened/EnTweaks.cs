@@ -160,9 +160,14 @@ namespace Rivened {
 					else if(c == '/') idx = 0xBE;
 					else if(c == '/') idx = 0xBE;
 					else if(c == ' ') idx = 0x0;
-					else if(c >= '0' && c <= '9') idx = 0x12D + (int) (c - '0');
-					else if(c >= 'A' && c <= 'Z') idx = 0x14E + (int) (c - 'A');
-					else if(c >= 'a' && c <= 'z') idx = 0x168 + (int) (c - 'a');
+					else if(c >= '0' && c <= '9') idx = 0x12D + (c - '0');
+					else if(c >= 'A' && c <= 'Z') idx = 0x14E + (c - 'A');
+					else if(c >= 'a' && c <= 'z') idx = 0x168 + (c - 'a');
+					else if(c >= 0x1 && c <= 0x8) idx = 0x1d2d + c;
+					else if(c >= 0xb && c <= 0x19) idx = 0x1d2b + c;
+					else if(c >= 0x1a && c <= 0x1d) idx = 101 + (c - 0x1a);
+					else if(c == 0x1e) idx = 24;
+					else if(c == 0x1f) idx = 11;
 					else {
 						ushort big5 = c == '@'? Big5.EncodeChar("＠", 0): Big5.EncodeChar(replacement, i);
 						(int row, int column) = (big5 >> 8, big5 & 0xFF);
