@@ -23,7 +23,7 @@ namespace Rivened {
 						val = BMP_TO_BIG5['Ь'];
 					} else if(full == '・') {
 						val = BMP_TO_BIG5['‧'];
-					} else if(full == '―') { // do not use this character in script
+					} else if(full == '―' || full == 8722) { // do not use this character in script
 						val = BMP_TO_BIG5['-'];
 					} else if(full == '´') {
 						val = BMP_TO_BIG5['Ы'];
@@ -54,6 +54,7 @@ namespace Rivened {
 				} else {
 					full = str[i];
 				}
+				if(full == 8203) continue; // skip zero width char
 				if(full <= 127) {
 					res.Add((byte) full);
 				} else if(full <= 0xFFFF) {
@@ -65,7 +66,7 @@ namespace Rivened {
 							val = BMP_TO_BIG5['Ь'];
 						} else if(full == '・') {
 							val = BMP_TO_BIG5['‧'];
-						} else if(full == '―') { // do not use this character in script
+						} else if(full == '―' || full == 8722) { // do not use this character in script
 							val = BMP_TO_BIG5['-'];
 						} else if(full == '´') {
 							val = BMP_TO_BIG5['Ы'];
