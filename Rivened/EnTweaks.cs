@@ -144,6 +144,7 @@ namespace Rivened {
 					}
 					int idx;
 					char c = replacement[i];
+					if(c == 8203) continue; // skip zero width char
 					if(c == '.') idx = 0x4;
 					else if(c == ',') idx = 0x1;
 					else if(c == ';') idx = 0x6;
