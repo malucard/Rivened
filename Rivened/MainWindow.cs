@@ -44,7 +44,7 @@ namespace Rivened {
 		
 		private async Task<HttpResponseMessage> DownloadSheet(HttpClient client, AFS.Entry entry, Dictionary<string, string> results) {
 			for(int i = 1;; i++) {
-				var response = await client.GetAsync("https://docs.google.com/spreadsheets/d/" + sheetsId + "/gviz/tq?tqx=out:csv&sheet=" + entry.Name).ConfigureAwait(false);
+				var response = await client.GetAsync("https://docs.google.com/spreadsheets/d/" + sheetsId + "/gviz/tq?tqx=out:csv&sheet=" + entry.Name + "&range=A1:B1000").ConfigureAwait(false);
 				if(response.IsSuccessStatusCode) {
 					var reading = await response.Content.ReadAsStringAsync();
 					results[entry.Name] = reading;
