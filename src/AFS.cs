@@ -39,7 +39,7 @@ public class AFS {
 			using var handle = File.OpenRead(afs.LoadPath.Path);
 			Data = new byte[Size];
 			handle.Position = Position;
-			handle.Read(Data, 0, Size);
+			handle.ReadExactly(Data, 0, Size);
 			handle.Dispose();
 			return Data;
 		}

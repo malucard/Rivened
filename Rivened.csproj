@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
 	<PublishSingleFile>true</PublishSingleFile>
 	<SelfContained>true</SelfContained>
 	<TrimMode>partial</TrimMode>
-	<PublishTrimmed>true</PublishTrimmed>
+	<PublishTrimmed>false</PublishTrimmed>
 	<DebuggerSupport>false</DebuggerSupport>
 	<EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
 	<EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
@@ -22,10 +22,7 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <!--PackageReference Include="GtkSharp.Dependencies" Version="1.1.1" /-->
-    <!--PackageReference Include="Scintilla.NET.Gtk" Version="1.0.11.5320" /-->
-    <PackageReference Include="GtkSharp" Version="3.24.24.38" />
-    <PackageReference Include="GtkSharp.Dependencies" Version="1.1.1" />
+    <PackageReference Include="GtkSharp" Version="3.24.24.133-develop" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="6.0.0" />
   </ItemGroup>
 </Project>

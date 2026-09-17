@@ -22,7 +22,6 @@ class MainWindow: Window {
 	[UI] private readonly Button btn_revert = null;
 	[UI] private readonly Button btn_export = null;
 	[UI] private readonly Image img_is_loaded = null;
-	[UI] private readonly Box box_toolbar = null;
 	[UI] private readonly Box box_script_bar = null;
 	[UI] private readonly Button btn_prepare_scripts = null;
 	[UI] private readonly CheckButton chk_en_tweaks = null;
@@ -30,7 +29,7 @@ class MainWindow: Window {
 	[UI] private readonly ComboBox cmb_dst_encoding = null;
 	public bool UseBig5 => cmb_dst_encoding.Active == 1;
 	[UI] private readonly ListBox lst_scripts = null;
-	[UI] private readonly Viewport textbox_viewport;
+	[UI] private readonly Viewport textbox_viewport = null;
 	private readonly TextView txt_textbox = null;
 	private bool editingTextbox = false;
 	private volatile static bool loadingScript = false;
