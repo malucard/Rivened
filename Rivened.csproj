@@ -1,28 +1,29 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
-	<PublishSingleFile>true</PublishSingleFile>
-	<SelfContained>false</SelfContained>
-	<TrimMode>partial</TrimMode>
-	<PublishTrimmed>false</PublishTrimmed>
-	<DebuggerSupport>false</DebuggerSupport>
-	<EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
-	<EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
-	<InvariantGlobalization>true</InvariantGlobalization>
-	<MetadataUpdaterSupport>false</MetadataUpdaterSupport>
-	<UseSystemResourceKeys>true</UseSystemResourceKeys>
-	<DebugType>embedded</DebugType>
-	<Platforms>AnyCPU;x64</Platforms>
-  </PropertyGroup>
-  <ItemGroup>
-    <None Remove="**\*.glade" />
-    <EmbeddedResource Include="**\*.glade">
-      <LogicalName>%(Filename)%(Extension)</LogicalName>
-    </EmbeddedResource>
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="GtkSharp" Version="3.24.24.133-develop" />
-    <PackageReference Include="System.Text.Encoding.CodePages" Version="6.0.0" />
-  </ItemGroup>
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net8.0</TargetFramework>
+		<RollForward>Major</RollForward>
+		<PublishSingleFile>true</PublishSingleFile>
+		<SelfContained>false</SelfContained>
+		<TrimMode>partial</TrimMode>
+		<PublishTrimmed>false</PublishTrimmed>
+		<DebuggerSupport>false</DebuggerSupport>
+		<EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
+		<EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
+		<InvariantGlobalization>true</InvariantGlobalization>
+		<MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+		<UseSystemResourceKeys>true</UseSystemResourceKeys>
+		<DebugType>embedded</DebugType>
+		<Platforms>AnyCPU;x64</Platforms>
+	</PropertyGroup>
+	<ItemGroup>
+		<None Remove="**\*.glade" />
+		<EmbeddedResource Include="**\*.glade">
+			<LogicalName>%(Filename)%(Extension)</LogicalName>
+		</EmbeddedResource>
+	</ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="GtkSharp" Version="3.24.24.133-develop" />
+		<PackageReference Include="System.Text.Encoding.CodePages" Version="6.0.0" />
+	</ItemGroup>
 </Project>
