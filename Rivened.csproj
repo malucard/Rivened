@@ -26,4 +26,11 @@
 		<PackageReference Include="GtkSharp" Version="3.24.24.133-develop" />
 		<PackageReference Include="System.Text.Encoding.CodePages" Version="6.0.0" />
 	</ItemGroup>
+
+	<Target Name="Rename" AfterTargets="Publish">
+		<Move
+			SourceFiles="$(PublishDir)$(AssemblyName)$(_NativeExecutableExtension)"
+			DestinationFiles="$(PublishDir)rivened-$(RuntimeIdentifier)$(_NativeExecutableExtension)"
+		/>
+	</Target>
 </Project>
