@@ -11,8 +11,7 @@ namespace Rivened {
 			Instance = null;
 			if((path.ResolveRelativePath("FILE/SCENE00.afs")?.Exists == true ||
 					path.ResolveRelativePath("FILE/SCENE00.afs.bak")?.Exists == true) &&
-					path.ResolveRelativePath("FILE/FONTS_PC.AFS")?.Exists == true &&
-					path.ResolveRelativePath("FILE/BGL/BGL00_PC.AFS")?.Exists == true) {
+					path.ResolveRelativePath("FILE/FONTS_PC.AFS")?.Exists == true) {
 				Instance = new LoadedGame(path);
 				return true;
 			}
@@ -34,7 +33,7 @@ namespace Rivened {
 				|| name.StartsWith("DATA");
 		}
 
-		public ScriptDecompiler decompiler = new ScriptDecompiler();
+		public ScriptDecompiler decompiler = new();
 		public IFile Path;
 		public bool ScriptsPrepared = false;
 		public bool ScriptListDirty = false;

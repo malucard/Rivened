@@ -1,10 +1,11 @@
 using System;
-using System.Threading.Tasks.Dataflow;
 using GLib;
+
+#nullable enable
 
 namespace Rivened {
 	public class FontSizeData {
-		private byte[] Data = null;
+		private byte[]? Data = null;
 
 		public bool Valid => Data != null;
 
@@ -17,12 +18,12 @@ namespace Rivened {
 				}
 			}
 			if(Data == null) {
-				Program.Log("Could not load font size data");
+				throw new Exception("Could not load font size data");
 			}
 		}
 
 		public (byte, byte) GetWidthAndPadding(int idx) {
-			if(idx * 4 + 2 > Data.Length) {
+			if(idx * 4 + 2 > Data!.Length) {
 				if(idx >= 0 && idx <= 0xFEFE) { // valid Big5 character unsupported in font, let it pass
 					return (0, 0);
 				}
@@ -37,6 +38,31 @@ namespace Rivened {
 		public static readonly char[] UPPER_ITALICS = new[] {'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'Й', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 'Х', 'Ц', 'Ч', 'Ш', 'Щ', 'Ъ', 'Ы', 'Ь', 'Э', 'Ю', 'Я'};
 		//{'а', 'б', 'в', 'г', 'д', 'е', 'ё', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 'п', 'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я'}
 		public static readonly char[] LOWER_ITALICS = new[] {'а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 'п', 'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я'};
+
+		public static bool SkipCommand(string s, ref int i, ref int lineWidth) {
+			if(s[i] == '%' && i + 1 < s.Length && (s[i + 1] == 'N' || s[i + 1] == 'P')) {
+				lineWidth = 0;
+				i += 2;
+				return true;
+			} else if(s[i] == '%' && i + 1 < s.Length && s[i + 1] == 'F') {
+				i += 2;
+				return true;
+			} else if(s[i] == '%' && i + 2 < s.Length && s[i + 1] == 'O') {
+				// i *hope* this works
+				i += 2;
+				while(i < s.Length && s[i] >= '0' && s[i] <= '9') {
+					i++;
+				}
+				i--;
+				return true;
+			} else if(s[i] == '%' && i + 1 < s.Length && s[i + 1] != '%') {
+				i++;
+				return true;
+			} else if(s[i] == '⑩' || s[i] == '　') { // hotfix for the 11b dual scene
+				return true;
+			}
+			return false;
+		}
 
 		public static string ApplyEnTweaks(string replacement) {
 			if(replacement.Contains("】「") && replacement.EndsWith('」')) {
@@ -111,6 +137,7 @@ namespace Rivened {
 					}
 				}
 			}
+
 			if(MainWindow.Instance.UseBig5 && LoadedGame.Instance.FontSizeData.Valid) {
 				var strStart = replacement.IndexOf("】“");
 				var isSpoken = strStart != -1;
@@ -122,24 +149,7 @@ namespace Rivened {
 					if(isSpoken && replacement[i - 1] == '”' && replacement[i] == '%') {
 						break;
 					}
-					if(replacement[i] == '%' && i + 1 < replacement.Length && (replacement[i + 1] == 'N' || replacement[i + 1] == 'P')) {
-						lineWidth = 0;
-						i += 2;
-						continue;
-					} else if(replacement[i] == '%' && i + 1 < replacement.Length && replacement[i + 1] == 'F') {
-						i += 2;
-						continue;
-					} else if(replacement[i] == '%' && i + 2 < replacement.Length && replacement[i + 1] == 'O') {
-						i += 2;
-						while(i < replacement.Length && replacement[i] >= '0' && replacement[i] <= '9') {
-							i++;
-						}
-						i--;
-						continue; // i *hope* this works
-					} else if(replacement[i] == '%' && i + 1 < replacement.Length && replacement[i + 1] != '%') {
-						i++;
-						continue;
-					} else if(replacement[i] == '⑩' || replacement[i] == '　') { // hotfix for the 11b dual scene
+					if(SkipCommand(replacement, ref i, ref lineWidth)) {
 						continue;
 					}
 					int idx;
@@ -171,7 +181,8 @@ namespace Rivened {
 					else if(c == 0x1f) idx = 11;
 					else {
 						ushort big5 = c == '@'? Big5.EncodeChar("＠", 0): Big5.EncodeChar(replacement, i);
-						(int row, int column) = (big5 >> 8, big5 & 0xFF);
+						int row = big5 >> 8;
+						int column = big5 & 0xFF;
 						if(row < 0xA1) {
 							continue;
 						}
@@ -198,8 +209,8 @@ namespace Rivened {
 						}
 					}
 					lineWidth += sizes.Item2;
-					lineBroken:
-					if(char.IsSurrogate(replacement[i])) {
+				lineBroken:
+					if(char.IsHighSurrogate(replacement[i])) {
 						i++;
 					}
 				}

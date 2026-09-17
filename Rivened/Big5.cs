@@ -6,9 +6,11 @@ namespace Rivened {
 	public static class Big5 {
 		public static ushort EncodeChar(string str, int i) {
 			int full;
-			if(char.IsSurrogate(str[i])) {
+			if(char.IsHighSurrogate(str[i])) {
 				full = char.ConvertToUtf32(str, i);
 				i++;
+			} else if(char.IsLowSurrogate(str[i])) {
+				throw new Exception("how? " + str + " at " + i);
 			} else {
 				full = str[i];
 			}
@@ -43,7 +45,7 @@ namespace Rivened {
 				return val;
 			}
 		}
-		
+
 		public static byte[] Encode(string str) {
 			var res = new List<byte>();
 			for(int i = 0; i < str.Length; i++) {
@@ -94,7 +96,7 @@ namespace Rivened {
 			}
 			return res.ToArray();
 		}
-		
+
 		public static string Decode(Span<byte> data) {
 			var res = "";
 			for(int i = 0; i < data.Length; i++) {
@@ -119,10 +121,12 @@ namespace Rivened {
 				BMP_TO_BIG5[i] = i;
 				BIG5_TO_UNICODE[i] = i;
 			}
+
 			// the speaker tag "【ΨｃＡ】" for some reason has this. not going to pretend I know what this character
 			// ever was, so it's going to U+EEF2 in the private use area which is the same the default encoder gives
 			BIG5_TO_UNICODE[0x817A] = 0xEEF2;
 			BMP_TO_BIG5[0xEEF2] = 0x817A;
+
 			foreach(var line_ in SRC.Split('\n')) {
 				var line = line_.TrimStart();
 				if(line.Length != 0 && line[0] >= '0' && line[0] <= '9') {
@@ -217,7 +221,7 @@ namespace Rivened {
 		public static readonly ushort[] BMP_TO_BIG5 = new ushort[0xFFFF];
 		public static readonly Dictionary<uint, ushort> REST_TO_BIG5 = new();
 		public static readonly uint[] BIG5_TO_UNICODE = new uint[0xFFFF];
-		
+
 		public const string SRC = @"# For details on index index-big5.txt see the Encoding Standard
 # https://encoding.spec.whatwg.org/
 #
